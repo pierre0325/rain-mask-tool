@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>台灣雨區圖去背工具</title>
+<style>
+body {
+  font-family: Arial, "Microsoft JhengHei", sans-serif;
+  background: #f5f7fb;
+  padding: 24px;
+  color: #333;
+}
+
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+
+h2 {
+  margin-bottom: 10px;
+}
+
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+
+button {
+  padding: 10px 16px;
+  margin-top: 10px;
+  margin-right: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #1a73e8;
+  color: white;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #ccc;
+}
+
+canvas {
+  max-width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-image:
+    linear-gradient(45deg, #eee 25%, transparent 25%),
+    linear-gradient(-45deg, #eee 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eee 75%),
+    linear-gradient(-45deg, transparent 75%, #eee 75%);
+  background-size: 20px 20px;
+}
+
+.status {
+  margin-top: 12px;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>台灣雨區圖去背工具（內建MASK）</h2>
+
+<div class="card">
+  <input type="file" id="inputImage" accept="image/png">
+  <br>
+
+  <button onclick="run()">執行去背</button>
+  <button onclick="download()" id="downloadBtn" disabled>下載 PNG</button>
+
+  <div id="status" class="status">請上傳圖片</div>
+</div>
+
+<div class="card">
+  <canvas id="canvas"></canvas>
+</div>
+
+</div>
+
+<script>
+
+// 🔥 直接讀同資料夾的 MASK.png
+const maskSrc = "MASK.png";
+
+let inputImg = null;
+let outputData = null;
+
+document.getElementById('inputImage').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  inputImg = await loadImage(URL.createObjectURL(file));
+
+  document.getElementById('status').innerText =
+    `已載入圖片\n尺寸：${inputImg.width} x ${inputImg.height}`;
+});
+
+async function run() {
+  try {
+    if (!inputImg) {
+      throw new Error("請先上傳圖片");
+    }
+
+    const maskImg = await loadImage(maskSrc);
+
+    if (inputImg.width !== maskImg.width ||
+        inputImg.height !== maskImg.height) {
+      throw new Error("尺寸不一致（需 702x800）");
+    }
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = inputImg.width;
+    canvas.height = inputImg.height;
+
+    ctx.drawImage(inputImg, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    const maskCanvas = document.createElement('canvas');
+    const mctx = maskCanvas.getContext('2d');
+
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    mctx.drawImage(maskImg, 0, 0);
+
+    const maskData = mctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    applyMask(imgData, maskData);
+    ctx.putImageData(imgData, 0, 0);
+
+    outputData = canvas.toDataURL("image/png");
+    document.getElementById('downloadBtn').disabled = false;
+
+    document.getElementById('status').innerText = "處理完成";
+  }
+  catch (err) {
+    document.getElementById('status').innerText = "錯誤：" + err.message;
+  }
+}
+
+function applyMask(imgData, maskData) {
+  const d = imgData.data;
+  const m = maskData.data;
+
+  for (let i = 0; i < d.length; i += 4) {
+    const brightness = (m[i] + m[i+1] + m[i+2]) / 3;
+    const alpha = m[i+3];
+
+    // 保留白色台灣
+    if (!(alpha > 10 && brightness > 200)) {
+      d[i+3] = 0;
+    }
+  }
+}
+
+function download() {
+  const a = document.createElement('a');
+  a.href = outputData;
+  a.download = buildFileName();
+  a.click();
+}
+
+function loadImage(src) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej("圖片載入失敗");
+    img.src = src;
+  });
+}
+
+function buildFileName() {
+  const d = new Date();
+  return `rain_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.png`;
+}
+
+function pad(n) {
+  return n.toString().padStart(2, '0');
+}
+
+</script>
+
+</body>
+</html>
