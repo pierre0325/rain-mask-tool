@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>台灣雨區圖去背工具</title>
+<title>臺灣雨區圖去背工具:STONE</title>
 <style>
 body {
   font-family: Arial, "Microsoft JhengHei", sans-serif;
@@ -65,10 +65,11 @@ canvas {
 <body>
 <div class="container">
 
-<h2>台灣雨區圖去背工具（內建MASK）</h2>
+<h2>臺灣雨區圖去背工具:STONE</h2>
 
 <div class="card">
-  <input type="file" id="inputImage" accept="image/png">
+  <!-- 1. 修改：accept 加入 jpg/jpeg -->
+  <input type="file" id="inputImage" accept="image/png, image/jpeg, image/jpg">
   <br>
 
   <button onclick="run()">執行去背</button>
@@ -88,6 +89,10 @@ canvas {
 // 🔥 直接讀同資料夾的 MASK.png
 const maskSrc = "MASK_v1.png";
 
+// 🔥 設定目標輸出尺寸
+const TARGET_WIDTH = 702;
+const TARGET_HEIGHT = 800;
+
 let inputImg = null;
 let outputData = null;
 
@@ -98,7 +103,7 @@ document.getElementById('inputImage').addEventListener('change', async (e) => {
   inputImg = await loadImage(URL.createObjectURL(file));
 
   document.getElementById('status').innerText =
-    `已載入圖片\n尺寸：${inputImg.width} x ${inputImg.height}`;
+    `已載入圖片\n原始尺寸：${inputImg.width} x ${inputImg.height}（將自動調整為 ${TARGET_WIDTH}x${TARGET_HEIGHT}）`;
 });
 
 async function run() {
@@ -109,28 +114,26 @@ async function run() {
 
     const maskImg = await loadImage(maskSrc);
 
-    if (inputImg.width !== maskImg.width ||
-        inputImg.height !== maskImg.height) {
-      throw new Error("尺寸不一致（需 702x800）");
-    }
-
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    canvas.width = inputImg.width;
-    canvas.height = inputImg.height;
+    // 2. 修改：固定 Canvas 為 702x800
+    canvas.width = TARGET_WIDTH;
+    canvas.height = TARGET_HEIGHT;
 
-    ctx.drawImage(inputImg, 0, 0);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    // 3. 修改：強制將輸入圖片繪製並縮放至 702x800
+    ctx.drawImage(inputImg, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+    const imgData = ctx.getImageData(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
     const maskCanvas = document.createElement('canvas');
     const mctx = maskCanvas.getContext('2d');
 
-    maskCanvas.width = canvas.width;
-    maskCanvas.height = canvas.height;
-    mctx.drawImage(maskImg, 0, 0);
+    maskCanvas.width = TARGET_WIDTH;
+    maskCanvas.height = TARGET_HEIGHT;
+    // 強制將遮罩圖繪製並縮放至 702x800
+    mctx.drawImage(maskImg, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-    const maskData = mctx.getImageData(0, 0, canvas.width, canvas.height);
+    const maskData = mctx.getImageData(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
     applyMask(imgData, maskData);
     ctx.putImageData(imgData, 0, 0);
